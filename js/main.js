@@ -834,48 +834,49 @@
         marquee.dispatchEvent(new CustomEvent(done ? 'marquee:release' : 'marquee:hold'));
       }
 
-      /* De sectie staat vast zodra de rij midden in beeld is.
-         Tijdens die pauze waaiert de rij uit; daarna loopt de
-         carrousel en scrolt de pagina weer door. Zonder pin
-         kwam de rij pas laat in beeld en was er maar ruim
-         100px scroll tussen "binnenkomen" en "helemaal
-         zichtbaar": dan sprongen de foto's eruit, of liep de
-         carrousel terwijl ze nog half op elkaar lagen.
-
-         Het uitwaaieren loopt zacht achter de scroll aan
-         (zoals scrub), met een rustige curve.               */
+      /* Zoals het prototype in Figma: geen scrub en geen pin,
+         maar een moment. Zolang de rij nog laag in beeld staat
+         ligt alleen de koelkastfoto er, stil. Komt de rij ver
+         genoeg omhoog, dan waaiert hij in één beweging uit en
+         begint de carrousel. Scrol je terug, dan schuift hij
+         weer in en staat hij stil, zodat het opnieuw kan.    */
       var ease = gsap.parseEase('sine.inOut');
       var proxy = { p: 0 };
-      var RELEASE_AT = 0.8;
+      var tween = null;
 
       function paint() {
         render(ease(proxy.p));
-        release(proxy.p >= RELEASE_AT);
       }
 
-      var follow = gsap.quickTo(proxy, 'p', {
-        duration: 0.9,
-        ease: 'power3.out',
-        onUpdate: paint,
-      });
+      function play(to) {
+        if (tween) tween.kill();
+        if (!to) release(false);
+        tween = gsap.to(proxy, {
+          p: to,
+          duration: to ? 1.1 : 0.6,
+          ease: to ? 'power3.out' : 'power2.inOut',
+          onUpdate: paint,
+          onComplete: function () { if (to) release(true); },
+        });
+        /* De carrousel mag al lopen als het uitwaaieren nog
+           afrondt; dat oogt als één doorgaande beweging. */
+        if (to) gsap.delayedCall(0.55, function () {
+          if (proxy.p > 0.5) release(true);
+        });
+      }
 
       var st = ScrollTrigger.create({
         trigger: marquee || section,
-        start: 'center center',
-        end: function () { return '+=' + Math.round(window.innerHeight * 0.8); },
-        pin: section,
-        pinSpacing: true,
-        /* Eerst rekenen, zodat de triggers verderop de extra
-           pinruimte meenemen. */
-        refreshPriority: 1,
-        invalidateOnRefresh: true,
-        onUpdate: function (self) { follow(self.progress); },
+        start: 'top 70%',
+        onEnter: function () { play(1); },
+        onLeaveBack: function () { play(0); },
         onRefresh: function (self) {
-          /* Bij laden of resizen meteen op de juiste stand,
-             zonder naloop vanaf nul. */
-          follow(self.progress, self.progress);
-          proxy.p = self.progress;
+          /* Bij laden of resizen meteen de juiste stand,
+             zonder animatie. */
+          if (tween) tween.kill();
+          proxy.p = self.progress > 0 || self.scroll() > self.start ? 1 : 0;
           paint();
+          release(proxy.p === 1);
         },
       });
 
