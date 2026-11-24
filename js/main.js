@@ -834,30 +834,41 @@
         marquee.dispatchEvent(new CustomEvent(done ? 'marquee:release' : 'marquee:hold'));
       }
 
-      /* Het uitwaaieren volgt de scroll niet één op één maar
-         loopt er zacht achteraan (zoals scrub: 1). Eerst ging
-         het over een korte afstand direct mee met elke
-         scrolltik, en dan sprongen de foto's er in een paar
-         frames uit. Nu over ruim tweemaal de afstand, met een
-         zachtere curve en naloop.                           */
+      /* De sectie staat vast zodra de rij midden in beeld is.
+         Tijdens die pauze waaiert de rij uit; daarna loopt de
+         carrousel en scrolt de pagina weer door. Zonder pin
+         kwam de rij pas laat in beeld en was er maar ruim
+         100px scroll tussen "binnenkomen" en "helemaal
+         zichtbaar": dan sprongen de foto's eruit, of liep de
+         carrousel terwijl ze nog half op elkaar lagen.
+
+         Het uitwaaieren loopt zacht achter de scroll aan
+         (zoals scrub), met een rustige curve.               */
       var ease = gsap.parseEase('sine.inOut');
       var proxy = { p: 0 };
+      var RELEASE_AT = 0.8;
 
       function paint() {
         render(ease(proxy.p));
-        release(proxy.p >= 0.999);
+        release(proxy.p >= RELEASE_AT);
       }
 
       var follow = gsap.quickTo(proxy, 'p', {
-        duration: 1.4,
+        duration: 0.9,
         ease: 'power3.out',
         onUpdate: paint,
       });
 
       var st = ScrollTrigger.create({
-        trigger: section,
-        start: 'top 90%',
-        end: 'top -25%',
+        trigger: marquee || section,
+        start: 'center center',
+        end: function () { return '+=' + Math.round(window.innerHeight * 0.8); },
+        pin: section,
+        pinSpacing: true,
+        /* Eerst rekenen, zodat de triggers verderop de extra
+           pinruimte meenemen. */
+        refreshPriority: 1,
+        invalidateOnRefresh: true,
         onUpdate: function (self) { follow(self.progress); },
         onRefresh: function (self) {
           /* Bij laden of resizen meteen op de juiste stand,
