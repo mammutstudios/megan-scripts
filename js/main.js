@@ -892,6 +892,87 @@
   }
 
   /* -------------------------------------------------------
+     Kop als marquee ("Your table is waiting")
+
+     De kop loopt als doorlopende band van rechts naar links.
+     De tekst blijft in Webflow gewoon in de kop staan (en dus
+     via de Table-component aan te passen); dit script maakt
+     er bij het laden een band van met genoeg kopieën om het
+     scherm twee keer te vullen, en schuift die band één kopie
+     op in een lus. Schermlezers lezen de kop één keer.
+     ------------------------------------------------------- */
+  function initHeadingMarquee() {
+    var gsap = window.gsap;
+    if (!gsap || reduced) return;
+
+    var heads = document.querySelectorAll('[data-heading-marquee], .table_heading');
+
+    Array.prototype.forEach.call(heads, function (head) {
+      if (head.dataset.marqueeReady) return;
+      var text = head.textContent.trim();
+      if (!text) return;
+      head.dataset.marqueeReady = 'true';
+      head.setAttribute('aria-label', text);
+      head.textContent = '';
+      head.style.display = 'block';
+      head.style.width = '100%';
+      head.style.overflow = 'hidden';
+      head.style.textAlign = 'left';
+      head.style.whiteSpace = 'nowrap';
+
+      var track = document.createElement('span');
+      track.setAttribute('aria-hidden', 'true');
+      track.style.display = 'inline-flex';
+      track.style.willChange = 'transform';
+      head.appendChild(track);
+
+      function item() {
+        var el = document.createElement('span');
+        el.textContent = text;
+        el.style.paddingRight = '0.45em';
+        el.style.flex = 'none';
+        return el;
+      }
+
+      var tween = null;
+      var lastWidth = 0;
+
+      /* Opmeten pas als het lettertype er is, en opnieuw als de
+         breedte verandert (de kop schaalt mee met het scherm);
+         anders klopt de lus niet en verspringt de band. */
+      function build() {
+        lastWidth = window.innerWidth;
+        if (tween) tween.kill();
+        track.textContent = '';
+        var first = item();
+        track.appendChild(first);
+        var unit = first.offsetWidth || 1;
+        var copies = Math.max(2, Math.ceil((window.innerWidth * 2) / unit) + 1);
+        for (var i = 1; i < copies; i++) track.appendChild(item());
+
+        /* Ongeveer 90 pixels per seconde: rustig genoeg om te
+           lezen, snel genoeg dat je ziet dat hij loopt. */
+        tween = gsap.fromTo(track, { x: 0 }, {
+          x: -unit,
+          duration: unit / 90,
+          ease: 'none',
+          repeat: -1,
+        });
+      }
+
+      var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      ready.then(build);
+
+      var timer;
+      window.addEventListener('resize', function () {
+        if (window.innerWidth === lastWidth) return;
+        clearTimeout(timer);
+        timer = setTimeout(build, 200);
+      });
+    });
+  }
+
+  /* -------------------------------------------------------
      Thema per sectie
 
      Secties met `data-theme` bepalen de kleuren van de hele
@@ -1824,6 +1905,7 @@
     initMoments();
     initPhotoGather();
     initStayMoments();
+    initHeadingMarquee();
     initTheme();
     initRail();
     initNavLines();
