@@ -834,17 +834,38 @@
         marquee.dispatchEvent(new CustomEvent(done ? 'marquee:release' : 'marquee:hold'));
       }
 
-      function step(self) {
-        render(gsap.parseEase('power2.inOut')(self.progress));
-        release(self.progress >= 1);
+      /* Het uitwaaieren volgt de scroll niet één op één maar
+         loopt er zacht achteraan (zoals scrub: 1). Eerst ging
+         het over een korte afstand direct mee met elke
+         scrolltik, en dan sprongen de foto's er in een paar
+         frames uit. Nu over ruim tweemaal de afstand, met een
+         zachtere curve en naloop.                           */
+      var ease = gsap.parseEase('sine.inOut');
+      var proxy = { p: 0 };
+
+      function paint() {
+        render(ease(proxy.p));
+        release(proxy.p >= 0.999);
       }
+
+      var follow = gsap.quickTo(proxy, 'p', {
+        duration: 1.4,
+        ease: 'power3.out',
+        onUpdate: paint,
+      });
 
       var st = ScrollTrigger.create({
         trigger: section,
-        start: 'top 65%',
-        end: 'top 30%',
-        onUpdate: step,
-        onRefresh: step,
+        start: 'top 90%',
+        end: 'top -25%',
+        onUpdate: function (self) { follow(self.progress); },
+        onRefresh: function (self) {
+          /* Bij laden of resizen meteen op de juiste stand,
+             zonder naloop vanaf nul. */
+          follow(self.progress, self.progress);
+          proxy.p = self.progress;
+          paint();
+        },
       });
 
       return function () {
