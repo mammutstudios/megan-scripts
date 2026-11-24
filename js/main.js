@@ -984,6 +984,7 @@
     dark: { bg: '--color--brown', text: '--color--butter', border: 'rgba(255, 229, 161, 0.35)' },
     light: { bg: '--color--cream', text: '--color--brown', border: 'rgba(68, 40, 34, 0.4)' },
     butter: { bg: '--color--butter', text: '--color--brown', border: 'rgba(68, 40, 34, 0.4)' },
+    wine: { bg: '--color--wine', text: '--color--cream', border: 'rgba(245, 241, 230, 0.4)' },
   };
 
   function themeColor(name, key) {
@@ -997,12 +998,42 @@
     var ScrollTrigger = window.ScrollTrigger;
     if (!gsap || !ScrollTrigger) return;
 
-    var sections = document.querySelectorAll('.section_vision[data-theme], [data-theme-blend]');
     var props = ['--color--background', '--color--text-main', '--color--border'];
+    var blends = [];
 
-    Array.prototype.forEach.call(sections, function (section) {
-      var to = section.dataset.theme || 'light';
-      var from = section.dataset.themeBlendFrom || 'dark';
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.section_vision[data-theme], [data-theme-blend]'),
+      function (section) {
+        blends.push({
+          section: section,
+          to: section.dataset.theme || 'light',
+          from: section.dataset.themeBlendFrom || 'dark',
+          end: THEME_SWITCH,
+        });
+      }
+    );
+
+    /* De momenten op Grab & Go en Stay a while zetten zelf hun
+       thema, vanaf 'top 55%'. Daar sprong het crème van de
+       pagina erboven in één keer naar het eerste moment (geel
+       op Grab & Go), met een harde rand halverwege het scherm.
+       Nu loopt dat over, net als op de homepage; het eindpunt
+       valt samen met het moment waarop de sectie het thema
+       overneemt. */
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-moments], [data-stay-moments]'),
+      function (section) {
+        var first = section.querySelector('[data-moment-theme]');
+        var to = first ? first.getAttribute('data-moment-theme') : null;
+        if (!to || to === 'light' || !THEME_COLORS[to]) return;
+        blends.push({ section: section, to: to, from: 'light', end: 'top 55%' });
+      }
+    );
+
+    blends.forEach(function (blend) {
+      var section = blend.section;
+      var to = blend.to;
+      var from = blend.from;
       var mix = {
         bg: gsap.utils.interpolate(themeColor(from, 'bg'), themeColor(to, 'bg')),
         text: gsap.utils.interpolate(themeColor(from, 'text'), themeColor(to, 'text')),
@@ -1042,7 +1073,7 @@
       ScrollTrigger.create({
         trigger: section,
         start: 'top bottom',
-        end: THEME_SWITCH,
+        end: blend.end,
         onUpdate: function (self) {
           var p = self.progress;
           if (themeOverride || p <= 0 || p >= 1) return release();
